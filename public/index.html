@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Analyse Vidéo</title>
+  <meta name="description" content="Analyse vidéo sportive : ralenti, dessins, commentaires, comparaison et tableau tactique.">
+  <meta name="theme-color" content="#0f172a">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- ================= ACCUEIL ================= -->
+  <section id="home" class="view">
+    <header class="topbar">
+      <div class="brand"><img src="icons/icon.svg" alt="" width="28" height="28"> Analyse Vidéo</div>
+      <button id="installBtn" class="btn ghost" hidden>Installer l'app</button>
+    </header>
+    <main class="home-main">
+      <div class="home-actions">
+        <label class="btn primary big">
+          + Nouvelle analyse vidéo
+          <input id="newVideoInput" type="file" accept="video/*" hidden>
+        </label>
+        <button id="newBoardBtn" class="btn big">+ Nouveau tableau blanc</button>
+        <label class="btn ghost">
+          Importer une analyse (.json)
+          <input id="importInput" type="file" accept=".json,application/json" hidden>
+        </label>
+      </div>
+      <h2>Mes analyses</h2>
+      <ul id="projectList" class="project-list"></ul>
+      <p id="emptyHint" class="hint">Aucune analyse pour l'instant. Choisis une vidéo pour commencer.</p>
+    </main>
+  </section>
+
+  <!-- ================= PROJET ================= -->
+  <section id="project" class="view" hidden>
+    <header class="topbar">
+      <button id="backBtn" class="btn ghost" title="Retour">←</button>
+      <input id="projectTitle" class="title-input" aria-label="Nom de l'analyse">
+      <nav class="tabs">
+        <button class="tab active" data-tab="video">Vidéo</button>
+        <button class="tab" data-tab="board">Tableau blanc</button>
+      </nav>
+      <div class="menu">
+        <button id="snapshotBtn" class="btn ghost" title="Enregistrer l'image avec les dessins">📷</button>
+        <button id="exportBtn" class="btn ghost" title="Exporter les annotations">⇩ Exporter</button>
+      </div>
+    </header>
+
+    <!-- ---------- Onglet vidéo ---------- -->
+    <div id="videoTab" class="tab-body">
+      <div class="workspace">
+        <div class="stage-col">
+          <div id="noVideo" class="no-video" hidden>
+            <label class="btn primary">Ajouter une vidéo<input id="addVideoInput" type="file" accept="video/*" hidden></label>
+          </div>
+          <div id="stage" class="stage">
+            <video id="videoA" playsinline preload="auto"></video>
+            <video id="videoB" playsinline preload="auto" muted hidden></video>
+            <canvas id="drawCanvas"></canvas>
+            <div id="noteBubble" class="note-bubble" hidden></div>
+          </div>
+
+          <div class="timeline">
+            <span id="timeLabel" class="mono">0:00.00</span>
+            <div id="seekWrap" class="seek-wrap">
+              <input id="seek" type="range" min="0" max="1000" step="1" value="0" aria-label="Position">
+              <div id="markers" class="markers"></div>
+            </div>
+            <span id="durLabel" class="mono">0:00</span>
+          </div>
+
+          <div class="controls">
+            <button id="stepBack" class="btn" title="Image précédente ( , )">⏮︎ 1 img</button>
+            <button id="playBtn" class="btn primary" title="Lecture / pause (espace)">▶︎</button>
+            <button id="stepFwd" class="btn" title="Image suivante ( . )">1 img ⏭︎</button>
+            <div class="speed">
+              <span>Vitesse</span>
+              <div class="seg" id="speedSeg">
+                <button data-rate="0.1">0.1×</button>
+                <button data-rate="0.25">¼×</button>
+                <button data-rate="0.5">½×</button>
+                <button data-rate="1" class="on">1×</button>
+                <button data-rate="1.5">1.5×</button>
+                <button data-rate="2">2×</button>
+                <button data-rate="4">4×</button>
+              </div>
+            </div>
+            <label class="chk"><input id="loopChk" type="checkbox"> Boucle A-B</label>
+            <button id="setA" class="btn small" title="Début de boucle">[A</button>
+            <button id="setB" class="btn small" title="Fin de boucle">B]</button>
+          </div>
+
+          <div class="toolbar" id="videoTools"></div>
+
+          <details class="compare" id="comparePanel">
+            <summary>Comparer avec une 2ᵉ vidéo (superposition)</summary>
+            <div class="compare-body">
+              <label class="btn">Choisir la vidéo B<input id="videoBInput" type="file" accept="video/*" hidden></label>
+              <button id="removeB" class="btn ghost" hidden>Retirer</button>
+              <div id="bControls" class="b-controls" hidden>
+                <label>Transparence <input id="bOpacity" type="range" min="0" max="1" step="0.05" value="0.5"></label>
+                <label>Mode
+                  <select id="bBlend">
+                    <option value="normal">Transparence</option>
+                    <option value="difference">Différence</option>
+                    <option value="lighten">Éclaircir</option>
+                  </select>
+                </label>
+                <div class="offset">
+                  Décalage B : <span id="bOffsetLabel" class="mono">0.00 s</span>
+                  <button class="btn small" data-boff="-1">-1 s</button>
+                  <button class="btn small" data-boff="-0.0333">-1 img</button>
+                  <button class="btn small" data-boff="0.0333">+1 img</button>
+                  <button class="btn small" data-boff="1">+1 s</button>
+                </div>
+                <label>Position B <input id="bShiftX" type="range" min="-0.5" max="0.5" step="0.01" value="0"></label>
+                <label>Taille B <input id="bScale" type="range" min="0.5" max="1.5" step="0.01" value="1"></label>
+              </div>
+            </div>
+          </details>
+        </div>
+
+        <aside class="side">
+          <div class="side-head">
+            <h3>Commentaires</h3>
+            <label class="chk" title="La vidéo s'arrête à chaque commentaire"><input id="autoPauseChk" type="checkbox" checked> Pause auto</label>
+          </div>
+          <form id="commentForm" class="comment-form">
+            <textarea id="commentText" rows="2" placeholder="Commentaire à ce moment de la vidéo…"></textarea>
+            <div class="row">
+              <span class="hint">à <b id="commentAt" class="mono">0:00.00</b></span>
+              <button class="btn primary small" type="submit">Ajouter</button>
+            </div>
+          </form>
+          <ul id="annList" class="ann-list"></ul>
+        </aside>
+      </div>
+    </div>
+
+    <!-- ---------- Onglet tableau blanc ---------- -->
+    <div id="boardTab" class="tab-body" hidden>
+      <div class="board-head">
+        <select id="boardSelect" aria-label="Tableau"></select>
+        <button id="addBoard" class="btn small">+ Tableau</button>
+        <button id="delBoard" class="btn small ghost">Supprimer</button>
+        <label>Fond
+          <select id="boardBg">
+            <option value="blank">Blanc</option>
+            <option value="grid">Quadrillage</option>
+            <option value="football">Terrain de foot</option>
+            <option value="futsal">Futsal / Hand</option>
+            <option value="basket">Basket</option>
+            <option value="rugby">Rugby</option>
+            <option value="tennis">Tennis</option>
+            <option value="volley">Volley</option>
+          </select>
+        </label>
+      </div>
+      <div class="board-stage-wrap">
+        <div id="boardStage" class="board-stage"><canvas id="boardCanvas"></canvas></div>
+      </div>
+      <div class="toolbar" id="boardTools"></div>
+    </div>
+  </section>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
