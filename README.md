@@ -12,7 +12,8 @@ Application web installable (PWA) pour l'analyse vidéo sportive et le coaching.
   pause automatique de la vidéo à chaque commentaire.
 - **Comparaison** : superposition d'une 2ᵉ vidéo avec transparence, mode « différence »,
   décalage dans le temps (à l'image près), position et taille réglables.
-- **Tableau blanc** : plusieurs tableaux blancs par analyse pour faire des schémas.
+- **Schémas sur la vidéo** : un tableau blanc s'accroche à un moment de la vidéo (bouton « 🧩 Schéma »).
+  À la lecture, la vidéo se met en pause à ce moment et le schéma s'ouvre par-dessus, puis « Continuer la vidéo ».
 - **Export** : image PNG du moment affiché avec les dessins, fichier `.json` des annotations
   (réimportable sur un autre appareil).
 - **Hors ligne** : tout est gardé dans le navigateur (IndexedDB), l'app s'installe sur

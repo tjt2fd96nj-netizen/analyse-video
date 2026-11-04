@@ -170,3 +170,26 @@ input[type=range] { accent-color: var(--accent); }
   .seg button { padding: 6px 7px; }
   .toolbar .tools button { min-width: 34px; padding: 6px; }
 }
+
+/* ---------- schéma (tableau blanc sur la vidéo) ---------- */
+.row-btns { display: inline-flex; gap: 6px; }
+.schema-badge {
+  position: absolute; top: 10px; right: 10px; z-index: 4;
+  background: #fff; color: #111; border: 0; border-radius: 999px; padding: 8px 14px;
+  font: 600 14px system-ui, sans-serif; cursor: pointer; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+.ann-list .meta .schema { padding: 1px 6px; font-size: 12px; background: #22c55e22; border-color: #22c55e66; color: #86efac; }
+.modal {
+  position: fixed; inset: 0; z-index: 40; background: rgba(5, 10, 20, 0.8);
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.modal-card {
+  width: min(1100px, 100%); max-height: 100%; overflow: auto;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.modal-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.modal-head .spacer { flex: 1; }
+.modal .board-stage-wrap { margin: 0; }
+.modal .board-stage { width: min(100%, calc((100vh - 230px) * 1.6)); }
+@media (max-width: 600px) { .modal { padding: 6px; } .modal-card { padding: 8px; } }

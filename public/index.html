@@ -26,7 +26,6 @@
           + Nouvelle analyse vidéo
           <input id="newVideoInput" type="file" accept="video/*" hidden>
         </label>
-        <button id="newBoardBtn" class="btn big">+ Nouveau tableau blanc</button>
         <label class="btn ghost">
           Importer une analyse (.json)
           <input id="importInput" type="file" accept=".json,application/json" hidden>
@@ -43,10 +42,6 @@
     <header class="topbar">
       <button id="backBtn" class="btn ghost" title="Retour">←</button>
       <input id="projectTitle" class="title-input" aria-label="Nom de l'analyse">
-      <nav class="tabs">
-        <button class="tab active" data-tab="video">Vidéo</button>
-        <button class="tab" data-tab="board">Tableau blanc</button>
-      </nav>
       <div class="menu">
         <button id="snapshotBtn" class="btn ghost" title="Enregistrer l'image avec les dessins">📷</button>
         <button id="exportBtn" class="btn ghost" title="Exporter les annotations">⇩ Exporter</button>
@@ -65,6 +60,7 @@
             <video id="videoB" playsinline preload="auto" muted hidden></video>
             <canvas id="drawCanvas"></canvas>
             <div id="noteBubble" class="note-bubble" hidden></div>
+            <button id="schemaBadge" class="schema-badge" type="button" hidden>🧩 Voir le schéma</button>
           </div>
 
           <div class="timeline">
@@ -136,27 +132,31 @@
             <textarea id="commentText" rows="2" placeholder="Commentaire à ce moment de la vidéo…"></textarea>
             <div class="row">
               <span class="hint">à <b id="commentAt" class="mono">0:00.00</b></span>
-              <button class="btn primary small" type="submit">Ajouter</button>
+              <span class="row-btns">
+                <button id="addSchemaBtn" class="btn small" type="button" title="Ouvrir un tableau blanc à ce moment de la vidéo">🧩 Schéma</button>
+                <button class="btn primary small" type="submit">Ajouter</button>
+              </span>
             </div>
           </form>
           <ul id="annList" class="ann-list"></ul>
         </aside>
       </div>
     </div>
+  </section>
 
-    <!-- ---------- Onglet tableau blanc ---------- -->
-    <div id="boardTab" class="tab-body" hidden>
-      <div class="board-head">
-        <select id="boardSelect" aria-label="Tableau"></select>
-        <button id="addBoard" class="btn small">+ Tableau</button>
-        <button id="delBoard" class="btn small ghost">Supprimer</button>
+  <!-- Tableau blanc (schéma) accroché à un moment de la vidéo -->
+  <div id="schemaModal" class="modal" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <b>🧩 Schéma à <span id="schemaAt" class="mono"></span></b>
+        <span class="spacer"></span>
+        <button id="schemaDelete" class="btn small ghost" type="button">Supprimer</button>
+        <button id="schemaClose" class="btn primary small" type="button">Terminé</button>
       </div>
-      <div class="board-stage-wrap">
-        <div id="boardStage" class="board-stage"><canvas id="boardCanvas"></canvas></div>
-      </div>
+      <div class="board-stage-wrap"><div class="board-stage"><canvas id="boardCanvas"></canvas></div></div>
       <div class="toolbar" id="boardTools"></div>
     </div>
-  </section>
+  </div>
 
   <div id="toast" class="toast" hidden></div>
 

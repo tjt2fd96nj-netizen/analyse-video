@@ -64,7 +64,7 @@ async function renderHome() {
     li.innerHTML = `
       <button class="open">
         <span class="ptitle">${esc(p.title)}</span>
-        <span class="pmeta">${p.videoRef ? '🎬 ' + esc(p.videoRef.name || 'vidéo') : '🧩 Tableau blanc'} · ${nC} commentaire(s) · ${nD} dessin(s) · ${p.boards.length} tableau(x)
+        <span class="pmeta">${p.videoRef ? '🎬 ' + esc(p.videoRef.name || 'vidéo') : '🎬 (vidéo à ajouter)'} · ${nC} commentaire(s) · ${nD} dessin(s) · ${p.annotations.filter((a) => a.board).length} schéma(s)
         · ${new Date(p.updatedAt).toLocaleDateString('fr-FR')}</span>
       </button>
       <button class="btn ghost small del" title="Supprimer">🗑</button>`;
@@ -92,21 +92,13 @@ $('#newVideoInput').onchange = async (e) => {
   location.hash = 'p=' + encodeURIComponent(p.id);
 };
 
-$('#newBoardBtn').onclick = async () => {
-  const p = blankProject('Tableau ' + new Date().toLocaleDateString('fr-FR'));
-  p.boards.push({ id: newId(), name: 'Tableau 1', shapes: [] });
-  await projects.put(p);
-  pendingTab = 'board';
-  location.hash = 'p=' + encodeURIComponent(p.id);
-};
-
 $('#importInput').onchange = async (e) => {
   const f = e.target.files[0]; e.target.value = '';
   if (!f) return;
   try {
     const data = JSON.parse(await f.text());
     if (data.format !== 'analyse-video') throw new Error('format');
-    const p = { ...blankProject(data.title || 'Analyse importée'), annotations: data.annotations || [], boards: data.boards || [] };
+    const p = { ...blankProject(data.title || 'Analyse importée'), annotations: data.annotations || [] };
     await projects.put(p);
     toast(data.videoName ? `Ajoute maintenant la vidéo « ${data.videoName} »` : 'Analyse importée');
     location.hash = 'p=' + encodeURIComponent(p.id);
@@ -122,7 +114,6 @@ $('#installBtn').onclick = async () => { if (!installEvt) return; installEvt.pro
 
 // ---------------------------------------------------------------- projet
 const videoA = $('#videoA'), videoB = $('#videoB'), stage = $('#stage');
-let pendingTab = null;
 
 async function openProject(p) {
   if (P && P.id === p.id) return;
@@ -134,11 +125,6 @@ async function openProject(p) {
   await loadVideoA();
   await loadVideoB();
   renderAnnotations();
-  if (!P.boards.length) P.boards.push({ id: newId(), name: 'Tableau 1', shapes: [] });
-  currentBoard = P.boards[0].id;
-  renderBoardSelect();
-  showTab(pendingTab || (P.videoRef ? 'video' : 'board'));
-  pendingTab = null;
 }
 
 function closeProject() {
@@ -154,14 +140,6 @@ function closeProject() {
 $('#backBtn').onclick = () => (location.hash = '');
 $('#projectTitle').oninput = (e) => { P.title = e.target.value; save(); };
 
-document.querySelectorAll('.tab').forEach((b) => (b.onclick = () => showTab(b.dataset.tab)));
-function showTab(tab) {
-  document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
-  $('#videoTab').hidden = tab !== 'video';
-  $('#boardTab').hidden = tab !== 'board';
-  if (tab === 'board') { videoA.pause(); renderBoard(); }
-  else videoSketch.resize();
-}
 
 // ---------------------------------------------------------------- vidéo A
 async function loadVideoA() {
@@ -229,8 +207,8 @@ function tick(force) {
   const t = videoA.currentTime;
   // Pause automatique sur les commentaires / dessins
   if (!videoA.paused && $('#autoPauseChk').checked) {
-    const hit = P.annotations.find((a) => a.t > lastT + 0.001 && a.t <= t && (a.text || a.shapes.length));
-    if (hit) { videoA.pause(); videoA.currentTime = hit.t; lastT = hit.t; return; }
+    const hit = P.annotations.find((a) => a.t > lastT + 0.001 && a.t <= t && (a.text || a.shapes.length || a.board));
+    if (hit) { videoA.pause(); videoA.currentTime = hit.t; lastT = hit.t; if (hit.board) openSchema(hit, true); return; }
   }
   // Boucle A-B
   if (!videoA.paused && $('#loopChk').checked && loopB != null && t >= loopB) {
@@ -251,6 +229,9 @@ function tick(force) {
     const bubble = $('#noteBubble');
     bubble.hidden = !texts.length;
     bubble.innerHTML = texts.map((a) => `<p>${esc(a.text)}</p>`).join('');
+    const withBoard = vis.find((a) => a.board);
+    $('#schemaBadge').hidden = !withBoard;
+    $('#schemaBadge').onclick = (e) => { e.stopPropagation(); if (withBoard) openSchema(withBoard); };
     document.querySelectorAll('#annList li').forEach((li) => li.classList.toggle('current', vis.some((a) => a.id === li.dataset.id)));
   }
 }
@@ -313,7 +294,7 @@ function annAt(t, create) {
   return a;
 }
 function pruneAnn(a) {
-  if (!a.text && !a.shapes.length) P.annotations = P.annotations.filter((x) => x !== a);
+  if (!a.text && !a.shapes.length && !a.board) P.annotations = P.annotations.filter((x) => x !== a);
 }
 function afterAnnChange() { save(); renderAnnotations(); tick(true); }
 
@@ -341,9 +322,10 @@ function renderAnnotations() {
     li.innerHTML = `
       <button class="time mono">${fmt(a.t)}</button>
       <div class="body">
-        <div class="txt">${a.text ? esc(a.text).replace(/\n/g, '<br>') : '<i class="hint">(dessin seul)</i>'}</div>
+        <div class="txt">${a.text ? esc(a.text).replace(/\n/g, '<br>') : `<i class="hint">(${a.board ? 'schéma' : 'dessin seul'})</i>`}</div>
         <div class="meta">
           ${a.shapes.length ? `✏️ ${a.shapes.length}` : ''}
+          ${a.board ? '<button class="schema" type="button">🧩 schéma</button>' : ''}
           <label>affiché <select class="dur">${[1, 2, 3, 5, 8, 15].map((d) => `<option value="${d}" ${d === (a.dur || DEFAULT_DUR) ? 'selected' : ''}>${d} s</option>`).join('')}</select></label>
         </div>
       </div>
@@ -352,6 +334,7 @@ function renderAnnotations() {
         <button class="del" title="Supprimer">🗑</button>
       </div>`;
     li.querySelector('.time').onclick = () => { videoA.pause(); videoA.currentTime = a.t; };
+    li.querySelector('.schema')?.addEventListener('click', () => { videoA.currentTime = a.t; openSchema(a); });
     li.querySelector('.dur').onchange = (e) => { a.dur = +e.target.value; afterAnnChange(); };
     li.querySelector('.edit').onclick = () => {
       const t = prompt('Commentaire :', a.text);
@@ -447,48 +430,58 @@ document.querySelectorAll('[data-boff]').forEach((b) => (b.onclick = () => {
   applyB(); save(); syncB(true);
 }));
 
-// ---------------------------------------------------------------- tableau blanc
-let currentBoard = null;
-const board = () => P?.boards.find((b) => b.id === currentBoard);
+// ---------------------------------------------------------------- tableau blanc (schéma sur la vidéo)
+// Un schéma est accroché à une annotation : quand la vidéo arrive à ce moment,
+// elle se met en pause et le tableau blanc s'ouvre par-dessus.
+let schemaAnn = null, schemaResume = false;
+const schemaShapes = () => schemaAnn.board.shapes;
 const boardSketch = new Sketch($('#boardCanvas'), {
-  onAdd(s) { board().shapes.push(s); save(); renderBoard(); },
-  onErase(s) { const b = board(); b.shapes = b.shapes.filter((x) => x.id !== s.id); save(); renderBoard(); },
+  onAdd(s) { schemaShapes().push(s); save(); boardSketch.setShapes(schemaShapes()); },
+  onErase(s) { schemaAnn.board.shapes = schemaShapes().filter((x) => x.id !== s.id); save(); boardSketch.setShapes(schemaShapes()); },
   background: (ctx, W, H) => { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H); },
 });
 buildToolbar($('#boardTools'), boardSketch, {
   defaultTool: 'pen', withNone: false,
-  onUndo() { board().shapes.pop(); save(); renderBoard(); },
-  onClear() { if (board().shapes.length && confirm('Effacer tout le tableau ?')) { board().shapes = []; save(); renderBoard(); } },
+  onUndo: undoSchema,
+  onClear() { if (schemaShapes().length && confirm('Effacer tout le schéma ?')) { schemaAnn.board.shapes = []; save(); boardSketch.setShapes([]); } },
 });
-function renderBoardSelect() {
-  const sel = $('#boardSelect');
-  sel.innerHTML = P.boards.map((b) => `<option value="${b.id}">${esc(b.name)}</option>`).join('');
-  sel.value = currentBoard;
-}
-function renderBoard() {
-  if (!P || !board()) return;
+function undoSchema() { schemaShapes().pop(); save(); boardSketch.setShapes(schemaShapes()); }
+
+function openSchema(a, resume = false) {
+  videoA.pause();
+  schemaAnn = a; schemaResume = resume;
+  $('#schemaAt').textContent = fmt(a.t);
+  $('#schemaClose').textContent = resume ? 'Continuer la vidéo ▶︎' : 'Terminé';
+  $('#schemaModal').hidden = false;
   boardSketch.resize();
-  boardSketch.setShapes(board().shapes);
+  boardSketch.setShapes(a.board.shapes);
 }
-$('#boardSelect').onchange = (e) => { currentBoard = e.target.value; renderBoard(); };
-$('#addBoard').onclick = () => {
-  const name = prompt('Nom du tableau :', `Tableau ${P.boards.length + 1}`);
-  if (name === null) return;
-  const b = { id: newId(), name: name.trim() || `Tableau ${P.boards.length + 1}`, shapes: [] };
-  P.boards.push(b); currentBoard = b.id; save(); renderBoardSelect(); renderBoard();
+function closeSchema() {
+  const a = schemaAnn;
+  $('#schemaModal').hidden = true;
+  schemaAnn = null;
+  if (a && !a.board.shapes.length) { delete a.board; pruneAnn(a); }
+  afterAnnChange();
+  if (schemaResume) videoA.play();
+}
+$('#schemaClose').onclick = closeSchema;
+$('#schemaDelete').onclick = () => {
+  if (!confirm('Supprimer ce schéma ?')) return;
+  schemaAnn.board.shapes = []; schemaResume = false; closeSchema();
 };
-$('#delBoard').onclick = () => {
-  if (!confirm(`Supprimer « ${board().name} » ?`)) return;
-  P.boards = P.boards.filter((b) => b.id !== currentBoard);
-  if (!P.boards.length) P.boards.push({ id: newId(), name: 'Tableau 1', shapes: [] });
-  currentBoard = P.boards[0].id; save(); renderBoardSelect(); renderBoard();
+$('#addSchemaBtn').onclick = () => {
+  if (!urlA) return;
+  videoA.pause();
+  const a = annAt(videoA.currentTime, true);
+  a.board ||= { shapes: [] };
+  openSchema(a);
 };
 
 // ---------------------------------------------------------------- export
 $('#exportBtn').onclick = () => {
   const data = {
     format: 'analyse-video', version: 1, title: P.title, exportedAt: new Date().toISOString(),
-    videoName: P.videoRef?.name || null, annotations: P.annotations, boards: P.boards,
+    videoName: P.videoRef?.name || null, annotations: P.annotations,
   };
   const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' }));
   download(`${safeName(P.title)}.analyse.json`, url);
@@ -497,8 +490,8 @@ $('#exportBtn').onclick = () => {
 };
 
 $('#snapshotBtn').onclick = () => {
-  if (!$('#boardTab').hidden) {
-    download(`${safeName(board().name)}.png`, boardSketch.toDataURL());
+  if (schemaAnn) {
+    download(`${safeName(P.title)}_schema_${fmt(schemaAnn.t).replace(/[:.]/g, '-')}.png`, boardSketch.toDataURL());
     return;
   }
   if (!urlA || !videoA.videoWidth) return;
@@ -544,10 +537,11 @@ document.addEventListener('keydown', (e) => {
   if (e.target.closest('input, textarea, select')) return;
   if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
     e.preventDefault();
-    if (!$('#boardTab').hidden) { board().shapes.pop(); save(); renderBoard(); } else undoVideo();
+    if (schemaAnn) undoSchema(); else undoVideo();
     return;
   }
-  if (!$('#videoTab').hidden) {
+  if (schemaAnn) { if (e.key === 'Escape') closeSchema(); return; }
+  {
     if (e.key === ' ') { e.preventDefault(); togglePlay(); }
     else if (e.key === 'ArrowLeft' || e.key === ',') { e.preventDefault(); step(e.shiftKey ? -1 : -FRAME); }
     else if (e.key === 'ArrowRight' || e.key === '.') { e.preventDefault(); step(e.shiftKey ? 1 : FRAME); }
