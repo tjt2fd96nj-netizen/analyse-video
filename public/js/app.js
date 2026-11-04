@@ -1,7 +1,6 @@
 import { projects, newId } from './db.js';
 import { videoStorage } from './video-storage.js';
 import { Sketch, buildToolbar, drawShapes } from './sketch.js';
-import { drawBackground } from './fields.js';
 
 const $ = (s) => document.querySelector(s);
 const FRAME = 1 / 30;
@@ -95,7 +94,7 @@ $('#newVideoInput').onchange = async (e) => {
 
 $('#newBoardBtn').onclick = async () => {
   const p = blankProject('Tableau ' + new Date().toLocaleDateString('fr-FR'));
-  p.boards.push({ id: newId(), name: 'Tableau 1', bg: 'football', shapes: [] });
+  p.boards.push({ id: newId(), name: 'Tableau 1', shapes: [] });
   await projects.put(p);
   pendingTab = 'board';
   location.hash = 'p=' + encodeURIComponent(p.id);
@@ -135,7 +134,7 @@ async function openProject(p) {
   await loadVideoA();
   await loadVideoB();
   renderAnnotations();
-  if (!P.boards.length) P.boards.push({ id: newId(), name: 'Tableau 1', bg: 'football', shapes: [] });
+  if (!P.boards.length) P.boards.push({ id: newId(), name: 'Tableau 1', shapes: [] });
   currentBoard = P.boards[0].id;
   renderBoardSelect();
   showTab(pendingTab || (P.videoRef ? 'video' : 'board'));
@@ -454,10 +453,10 @@ const board = () => P?.boards.find((b) => b.id === currentBoard);
 const boardSketch = new Sketch($('#boardCanvas'), {
   onAdd(s) { board().shapes.push(s); save(); renderBoard(); },
   onErase(s) { const b = board(); b.shapes = b.shapes.filter((x) => x.id !== s.id); save(); renderBoard(); },
-  background: (ctx, W, H) => drawBackground(board()?.bg || 'blank', ctx, W, H),
+  background: (ctx, W, H) => { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H); },
 });
 buildToolbar($('#boardTools'), boardSketch, {
-  defaultTool: 'token', withNone: false,
+  defaultTool: 'pen', withNone: false,
   onUndo() { board().shapes.pop(); save(); renderBoard(); },
   onClear() { if (board().shapes.length && confirm('Effacer tout le tableau ?')) { board().shapes = []; save(); renderBoard(); } },
 });
@@ -468,22 +467,20 @@ function renderBoardSelect() {
 }
 function renderBoard() {
   if (!P || !board()) return;
-  $('#boardBg').value = board().bg;
   boardSketch.resize();
   boardSketch.setShapes(board().shapes);
 }
 $('#boardSelect').onchange = (e) => { currentBoard = e.target.value; renderBoard(); };
-$('#boardBg').onchange = (e) => { board().bg = e.target.value; save(); renderBoard(); };
 $('#addBoard').onclick = () => {
   const name = prompt('Nom du tableau :', `Tableau ${P.boards.length + 1}`);
   if (name === null) return;
-  const b = { id: newId(), name: name.trim() || `Tableau ${P.boards.length + 1}`, bg: board()?.bg || 'football', shapes: [] };
+  const b = { id: newId(), name: name.trim() || `Tableau ${P.boards.length + 1}`, shapes: [] };
   P.boards.push(b); currentBoard = b.id; save(); renderBoardSelect(); renderBoard();
 };
 $('#delBoard').onclick = () => {
   if (!confirm(`Supprimer « ${board().name} » ?`)) return;
   P.boards = P.boards.filter((b) => b.id !== currentBoard);
-  if (!P.boards.length) P.boards.push({ id: newId(), name: 'Tableau 1', bg: 'football', shapes: [] });
+  if (!P.boards.length) P.boards.push({ id: newId(), name: 'Tableau 1', shapes: [] });
   currentBoard = P.boards[0].id; save(); renderBoardSelect(); renderBoard();
 };
 

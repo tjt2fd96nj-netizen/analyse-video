@@ -1,6 +1,6 @@
 // Service worker : garde l'application en cache pour qu'elle s'ouvre sans réseau.
 // Pense à changer VERSION à chaque mise en ligne pour forcer la mise à jour.
-const VERSION = 'v1';
+const VERSION = 'v2';
 const CACHE = `analyse-video-${VERSION}`;
 const SHELL = [
   './',
@@ -9,7 +9,6 @@ const SHELL = [
   'js/app.js',
   'js/db.js',
   'js/sketch.js',
-  'js/fields.js',
   'js/video-storage.js',
   'manifest.webmanifest',
   'icons/icon.svg',

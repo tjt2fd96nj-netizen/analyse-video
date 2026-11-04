@@ -12,8 +12,7 @@ Application web installable (PWA) pour l'analyse vidéo sportive et le coaching.
   pause automatique de la vidéo à chaque commentaire.
 - **Comparaison** : superposition d'une 2ᵉ vidéo avec transparence, mode « différence »,
   décalage dans le temps (à l'image près), position et taille réglables.
-- **Tableau blanc** : plusieurs tableaux par analyse, fonds de terrain (foot, futsal/hand,
-  basket, rugby, tennis, volley, quadrillage).
+- **Tableau blanc** : plusieurs tableaux blancs par analyse pour faire des schémas.
 - **Export** : image PNG du moment affiché avec les dessins, fichier `.json` des annotations
   (réimportable sur un autre appareil).
 - **Hors ligne** : tout est gardé dans le navigateur (IndexedDB), l'app s'installe sur
@@ -57,7 +56,6 @@ firebase deploy --only hosting
 | `public/css/style.css` | Apparence (ordinateur et mobile) |
 | `public/js/app.js` | Logique de l'application |
 | `public/js/sketch.js` | Moteur de dessin (vidéo et tableau blanc) |
-| `public/js/fields.js` | Dessin des terrains |
 | `public/js/db.js` | Sauvegarde locale (IndexedDB) |
 | `public/js/video-storage.js` | Stockage des vidéos (local aujourd'hui, R2/Bunny demain) |
 | `public/sw.js` | Fonctionnement hors ligne |
