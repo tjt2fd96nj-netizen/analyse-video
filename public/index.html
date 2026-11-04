@@ -60,6 +60,7 @@
             <video id="videoB" playsinline preload="auto" muted hidden></video>
             <canvas id="drawCanvas"></canvas>
             <div id="noteBubble" class="note-bubble" hidden></div>
+            <div id="slowBadge" class="slow-badge" hidden></div>
             <button id="schemaBadge" class="schema-badge" type="button" hidden>🧩 Voir le schéma</button>
           </div>
 
@@ -91,6 +92,17 @@
             <label class="chk"><input id="loopChk" type="checkbox"> Boucle A-B</label>
             <button id="setA" class="btn small" title="Début de boucle">[A</button>
             <button id="setB" class="btn small" title="Fin de boucle">B]</button>
+          </div>
+
+          <div class="slow-bar">
+            <button id="slowBtn" class="btn small" title="Marque un passage qui sera toujours lu au ralenti">🐢 Début du ralenti</button>
+            <select id="slowRate" aria-label="Vitesse du ralenti">
+              <option value="0.1">0.1×</option>
+              <option value="0.25">¼×</option>
+              <option value="0.5" selected>½×</option>
+              <option value="0.75">¾×</option>
+            </select>
+            <div id="slowList" class="slow-list"></div>
           </div>
 
           <div class="toolbar" id="videoTools"></div>

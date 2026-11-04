@@ -98,7 +98,7 @@ $('#importInput').onchange = async (e) => {
   try {
     const data = JSON.parse(await f.text());
     if (data.format !== 'analyse-video') throw new Error('format');
-    const p = { ...blankProject(data.title || 'Analyse importée'), annotations: data.annotations || [] };
+    const p = { ...blankProject(data.title || 'Analyse importée'), annotations: data.annotations || [], slow: data.slow || [] };
     await projects.put(p);
     toast(data.videoName ? `Ajoute maintenant la vidéo « ${data.videoName} »` : 'Analyse importée');
     location.hash = 'p=' + encodeURIComponent(p.id);
@@ -121,10 +121,11 @@ async function openProject(p) {
   P = p;
   $('#home').hidden = true; $('#project').hidden = false;
   $('#projectTitle').value = P.title;
-  undoStack.length = 0; loopA = loopB = null; $('#loopChk').checked = false;
+  undoStack.length = 0; loopA = loopB = null; $('#loopChk').checked = false; resetSlowBtn();
   await loadVideoA();
   await loadVideoB();
   renderAnnotations();
+  renderSlow();
 }
 
 function closeProject() {
@@ -186,8 +187,10 @@ $('#stepFwd').onclick = () => step(FRAME);
 const seek = $('#seek');
 seek.oninput = () => { if (videoA.duration) videoA.currentTime = (seek.value / 1000) * videoA.duration; };
 
+let userRate = 1;
 function setRate(r) {
-  videoA.playbackRate = r; videoB.playbackRate = r;
+  userRate = r;
+  applyRate(videoA.currentTime);
   document.querySelectorAll('#speedSeg button').forEach((b) => b.classList.toggle('on', +b.dataset.rate === r));
 }
 document.querySelectorAll('#speedSeg button').forEach((b) => (b.onclick = () => setRate(+b.dataset.rate)));
@@ -195,6 +198,65 @@ document.querySelectorAll('#speedSeg button').forEach((b) => (b.onclick = () => 
 $('#setA').onclick = () => { loopA = videoA.currentTime; if (loopB != null && loopB <= loopA) loopB = null; $('#loopChk').checked = loopB != null; renderMarkers(); toast(`Début de boucle : ${fmt(loopA)}`); };
 $('#setB').onclick = () => { loopB = videoA.currentTime; if (loopA == null || loopA >= loopB) loopA = 0; $('#loopChk').checked = true; renderMarkers(); toast(`Boucle ${fmt(loopA)} → ${fmt(loopB)}`); };
 $('#loopChk').onchange = renderMarkers;
+
+// ---------------------------------------------------------------- passages ralentis
+// Un passage ralenti est enregistré avec l'analyse : il est lu au ralenti
+// à chaque lecture, pour tout le monde, sans toucher au réglage de vitesse.
+let slowStart = null;
+const slowAt = (t) => (P?.slow || []).find((s) => t >= s.start && t < s.end);
+const rateLabel = (r) => ({ 0.1: '0.1×', 0.25: '¼×', 0.5: '½×', 0.75: '¾×' }[r] || r + '×');
+
+function applyRate(t) {
+  const seg = slowAt(t);
+  const r = seg ? seg.rate : userRate;
+  if (videoA.playbackRate !== r) videoA.playbackRate = r;
+  if (videoB.playbackRate !== r) videoB.playbackRate = r;
+  const badge = $('#slowBadge');
+  badge.hidden = !seg;
+  if (seg) badge.textContent = `🐢 Ralenti ${rateLabel(seg.rate)}`;
+}
+
+$('#slowBtn').onclick = () => {
+  if (!urlA) return;
+  const t = videoA.currentTime;
+  if (slowStart == null) {
+    slowStart = t;
+    $('#slowBtn').textContent = '🐢 Fin du ralenti';
+    $('#slowBtn').classList.add('primary');
+    toast(`Début du ralenti : ${fmt(t)}. Avance jusqu'à la fin du passage.`);
+    return;
+  }
+  const start = Math.min(slowStart, t), end = Math.max(slowStart, t);
+  resetSlowBtn();
+  if (end - start < 0.1) { toast('Passage trop court'); return; }
+  P.slow = (P.slow || []).filter((s) => s.end <= start || s.start >= end); // pas de chevauchement
+  P.slow.push({ id: newId(), start, end, rate: +$('#slowRate').value });
+  P.slow.sort((a, b) => a.start - b.start);
+  save(); renderSlow(); applyRate(videoA.currentTime);
+  toast(`Ralenti enregistré : ${fmt(start)} → ${fmt(end)}`);
+};
+function resetSlowBtn() {
+  slowStart = null;
+  $('#slowBtn').textContent = '🐢 Début du ralenti';
+  $('#slowBtn').classList.remove('primary');
+}
+
+function renderSlow() {
+  const box = $('#slowList');
+  box.innerHTML = '';
+  for (const s of P.slow || []) {
+    const chip = document.createElement('span');
+    chip.className = 'slow-chip';
+    chip.innerHTML = `<button class="go mono" type="button">${fmt(s.start)} → ${fmt(s.end)}</button>
+      <select>${[0.1, 0.25, 0.5, 0.75].map((r) => `<option value="${r}" ${r === s.rate ? 'selected' : ''}>${rateLabel(r)}</option>`).join('')}</select>
+      <button class="del" type="button" title="Supprimer ce ralenti">✕</button>`;
+    chip.querySelector('.go').onclick = () => { videoA.pause(); videoA.currentTime = s.start; };
+    chip.querySelector('select').onchange = (e) => { s.rate = +e.target.value; save(); applyRate(videoA.currentTime); };
+    chip.querySelector('.del').onclick = () => { P.slow = P.slow.filter((x) => x !== s); save(); renderSlow(); applyRate(videoA.currentTime); };
+    box.append(chip);
+  }
+  renderMarkers();
+}
 
 // Boucle d'affichage pendant la lecture
 function loop() {
@@ -215,6 +277,7 @@ function tick(force) {
     videoA.currentTime = loopA || 0; lastT = loopA || 0; return;
   }
   lastT = t;
+  applyRate(t);
   if (videoA.duration) seek.value = Math.round((t / videoA.duration) * 1000);
   $('#timeLabel').textContent = fmt(t);
   $('#commentAt').textContent = fmt(t);
@@ -362,6 +425,14 @@ function renderMarkers() {
     m.title = `${fmt(a.t)} ${a.text || '(dessin)'}`;
     box.append(m);
   }
+  for (const s of P.slow || []) {
+    const r = document.createElement('span');
+    r.className = 'slow-range';
+    r.style.left = `${(s.start / d) * 100}%`;
+    r.style.width = `${((s.end - s.start) / d) * 100}%`;
+    r.title = `Ralenti ${rateLabel(s.rate)}`;
+    box.append(r);
+  }
   if ($('#loopChk').checked && loopB != null) {
     const r = document.createElement('span');
     r.className = 'loop-range';
@@ -481,7 +552,7 @@ $('#addSchemaBtn').onclick = () => {
 $('#exportBtn').onclick = () => {
   const data = {
     format: 'analyse-video', version: 1, title: P.title, exportedAt: new Date().toISOString(),
-    videoName: P.videoRef?.name || null, annotations: P.annotations,
+    videoName: P.videoRef?.name || null, annotations: P.annotations, slow: P.slow || [],
   };
   const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' }));
   download(`${safeName(P.title)}.analyse.json`, url);

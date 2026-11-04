@@ -193,3 +193,12 @@ input[type=range] { accent-color: var(--accent); }
 .modal .board-stage-wrap { margin: 0; }
 .modal .board-stage { width: min(100%, calc((100vh - 230px) * 1.6)); }
 @media (max-width: 600px) { .modal { padding: 6px; } .modal-card { padding: 8px; } }
+
+/* ---------- passages ralentis ---------- */
+.slow-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.slow-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.slow-chip { display: inline-flex; align-items: center; gap: 4px; background: #f59e0b22; border: 1px solid #f59e0b66; border-radius: 8px; padding: 2px 4px; font-size: 12px; }
+.slow-chip button { background: none; border: 0; color: #fcd34d; font: inherit; cursor: pointer; padding: 3px 4px; }
+.slow-chip select { padding: 1px 2px; font-size: 12px; }
+.slow-range { position: absolute; bottom: 2px; height: 5px; background: rgba(245, 158, 11, 0.85); border-radius: 2px; }
+.slow-badge { position: absolute; top: 10px; left: 10px; z-index: 4; pointer-events: none; background: #f59e0b; color: #111; border-radius: 999px; padding: 5px 12px; font: 700 13px system-ui, sans-serif; }

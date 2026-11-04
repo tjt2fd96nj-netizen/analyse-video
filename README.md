@@ -5,6 +5,8 @@ Application web installable (PWA) pour l'analyse vidéo sportive et le coaching.
 ## Ce que fait la version actuelle
 
 - **Lecteur vidéo** : lecture image par image, vitesses de 0,1× à 4×, boucle A-B.
+- **Passages ralentis enregistrés** : bouton « 🐢 Début du ralenti » puis « Fin du ralenti ». Le passage est
+  ensuite toujours lu au ralenti (¼×, ½×…), puis la vidéo reprend sa vitesse normale.
 - **Dessins sur la vidéo** : crayon, ligne, flèche, flèche pointillée, rectangle, cercle,
   projecteur (assombrit tout sauf un joueur), pions numérotés, texte, gomme, annuler.
   Chaque dessin est accroché à un moment précis de la vidéo et reste affiché quelques secondes.
