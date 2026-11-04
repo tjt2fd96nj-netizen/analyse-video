@@ -30,7 +30,7 @@ Raccourcis clavier : `Espace` lecture/pause, `←` `→` image par image (`Maj` 
 
 ## Version de démo
 
-GitHub Pages (source : branche `main`, dossier racine) : l'`index.html` à la racine redirige vers `public/`.
+GitHub Pages, source « GitHub Actions » (Settings → Pages) : le workflow `.github/workflows/pages.yml` publie le dossier `public/` à chaque envoi sur `main`.
 
 ## Lancer en local
 
