@@ -28,6 +28,10 @@ Raccourcis clavier : `Espace` lecture/pause, `←` `→` image par image (`Maj` 
    Le stockage vidéo passe par `public/js/video-storage.js` : il suffit d'y ajouter un fournisseur.
 4. Espace joueur : le coach ajoute une vidéo à un joueur, le joueur la voit avec tous les dessins et commentaires.
 
+## Version de démo
+
+GitHub Pages (source : branche `main`, dossier racine) : l'`index.html` à la racine redirige vers `public/`.
+
 ## Lancer en local
 
 Aucune installation nécessaire, juste un petit serveur web :
