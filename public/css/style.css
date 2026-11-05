@@ -202,3 +202,11 @@ input[type=range] { accent-color: var(--accent); }
 .slow-chip select { padding: 1px 2px; font-size: 12px; }
 .slow-range { position: absolute; bottom: 2px; height: 5px; background: rgba(245, 158, 11, 0.85); border-radius: 2px; }
 .slow-badge { position: absolute; top: 10px; left: 10px; z-index: 4; pointer-events: none; background: #f59e0b; color: #111; border-radius: 999px; padding: 5px 12px; font: 700 13px system-ui, sans-serif; }
+
+/* ---------- pas de zoom sur l'interface ---------- */
+html, body { touch-action: pan-x pan-y; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+button, .btn, .seg button, label, select, input { touch-action: manipulation; }
+/* iPhone zoome automatiquement sur un champ dont le texte fait moins de 16 px */
+@media (pointer: coarse) {
+  select, textarea, input[type=text], .title-input { font-size: 16px; }
+}

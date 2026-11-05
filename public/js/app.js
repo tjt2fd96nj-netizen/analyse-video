@@ -619,6 +619,16 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+// ---------------------------------------------------------------- pas de zoom
+// Empêche le zoom de la page (pincement, double-tap, Ctrl + molette) :
+// l'interface doit rester fixe comme une vraie application.
+['gesturestart', 'gesturechange', 'gestureend'].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
+document.addEventListener('touchmove', (e) => { if (e.touches.length > 1 || (e.scale && e.scale !== 1)) e.preventDefault(); }, { passive: false });
+document.addEventListener('wheel', (e) => { if (e.ctrlKey) e.preventDefault(); }, { passive: false });
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && ['+', '-', '=', '0'].includes(e.key)) e.preventDefault();
+});
+
 // ---------------------------------------------------------------- démarrage
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   navigator.serviceWorker.register('sw.js').catch(() => {});
