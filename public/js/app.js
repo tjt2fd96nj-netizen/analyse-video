@@ -1,6 +1,7 @@
 import { projects, newId } from './db.js';
 import { videoStorage } from './video-storage.js';
 import { Sketch, buildToolbar, drawShapes } from './sketch.js';
+import { voiceSupported, startRecording, MAX_SECONDS, unlockAudio, playVoices, stopVoice, playingVoiceId, onVoiceChange, removeVoices, voicesToData, voicesFromData } from './voice.js';
 
 const $ = (s) => document.querySelector(s);
 const FRAME = 1 / 30;
@@ -72,6 +73,7 @@ async function renderHome() {
     li.querySelector('.del').onclick = async () => {
       if (!confirm(`Supprimer « ${p.title} » ?`)) return;
       await videoStorage.remove(p.videoRef); await videoStorage.remove(p.compareRef);
+      for (const a of p.annotations) await removeVoices(a.voice);
       await projects.remove(p.id); renderHome();
     };
     ul.append(li);
@@ -98,7 +100,9 @@ $('#importInput').onchange = async (e) => {
   try {
     const data = JSON.parse(await f.text());
     if (data.format !== 'analyse-video') throw new Error('format');
-    const p = { ...blankProject(data.title || 'Analyse importée'), annotations: data.annotations || [], slow: data.slow || [] };
+    const annotations = data.annotations || [];
+    for (const a of annotations) if (a.voice) a.voice = await voicesFromData(a.voice);
+    const p = { ...blankProject(data.title || 'Analyse importée'), annotations, slow: data.slow || [] };
     await projects.put(p);
     toast(data.videoName ? `Ajoute maintenant la vidéo « ${data.videoName} »` : 'Analyse importée');
     location.hash = 'p=' + encodeURIComponent(p.id);
@@ -131,6 +135,8 @@ async function openProject(p) {
 function closeProject() {
   if (!P) return;
   clearTimeout(saveTimer); projects.put(P);
+  stopVoice();
+  if (recorder) { recorder.cancel(); recorder = null; clearInterval(recTimer); document.body.classList.remove('recording'); $('#micBtn').textContent = '🎤 Vocal'; $('#micFab').textContent = '🎤'; }
   videoA.pause(); videoB.pause();
   videoA.removeAttribute('src'); videoB.removeAttribute('src'); videoA.load(); videoB.load();
   if (urlA) URL.revokeObjectURL(urlA);
@@ -167,11 +173,14 @@ videoA.addEventListener('loadedmetadata', () => {
 });
 videoA.addEventListener('play', () => { $('#playBtn').textContent = '❚❚'; syncB(true); loop(); });
 videoA.addEventListener('pause', () => { $('#playBtn').textContent = '▶︎'; syncB(true); tick(true); });
+videoA.addEventListener('seeking', () => { if (!voiceResuming) stopVoice(); });
 videoA.addEventListener('seeked', () => { lastT = videoA.currentTime; syncB(true); tick(true); });
 videoA.addEventListener('ended', () => tick(true));
 
 function togglePlay() {
   if (!urlA) return;
+  unlockAudio();
+  stopVoice();
   if (videoA.paused) {
     if (videoSketch.tool !== 'none') toolbarV.select('none');
     videoA.play();
@@ -269,8 +278,17 @@ function tick(force) {
   const t = videoA.currentTime;
   // Pause automatique sur les commentaires / dessins
   if (!videoA.paused && $('#autoPauseChk').checked) {
-    const hit = P.annotations.find((a) => a.t > lastT + 0.001 && a.t <= t && (a.text || a.shapes.length || a.board));
-    if (hit) { videoA.pause(); videoA.currentTime = hit.t; lastT = hit.t; if (hit.board) openSchema(hit, true); return; }
+    const hit = P.annotations.find((a) => a.t > lastT + 0.001 && a.t <= t && (a.text || a.shapes.length || a.board || a.voice?.length));
+    if (hit) {
+      videoA.pause(); voiceResuming = true; videoA.currentTime = hit.t; lastT = hit.t;
+      if (hit.board) openSchema(hit, true);
+      if (hit.voice?.length) {
+        // Lit le vocal puis relance la vidéo (sauf si un schéma est ouvert : c'est son bouton qui relance).
+        playVoices(hit.id, hit.voice, () => { if (!schemaAnn && videoA.paused) videoA.play(); });
+      }
+      setTimeout(() => (voiceResuming = false), 300);
+      return;
+    }
   }
   // Boucle A-B
   if (!videoA.paused && $('#loopChk').checked && loopB != null && t >= loopB) {
@@ -284,7 +302,7 @@ function tick(force) {
   if (urlB && !videoA.paused) syncB(false);
 
   const vis = visibleAnns(t);
-  const key = vis.map((a) => a.id + ':' + a.shapes.length + ':' + a.text.length).join('|');
+  const key = vis.map((a) => a.id + ':' + a.shapes.length + ':' + a.text.length + ':' + (a.voice?.length || 0)).join('|');
   if (force || key !== lastKey) {
     lastKey = key;
     videoSketch.setShapes(vis.flatMap((a) => a.shapes));
@@ -292,6 +310,9 @@ function tick(force) {
     const bubble = $('#noteBubble');
     bubble.hidden = !texts.length;
     bubble.innerHTML = texts.map((a) => `<p>${esc(a.text)}</p>`).join('');
+    const withVoice = vis.find((a) => a.voice?.length);
+    $('#voiceBadge').hidden = !withVoice;
+    $('#voiceBadge').onclick = (e) => { e.stopPropagation(); if (withVoice) toggleVoice(withVoice); };
     const withBoard = vis.find((a) => a.board);
     $('#schemaBadge').hidden = !withBoard;
     $('#schemaBadge').onclick = (e) => { e.stopPropagation(); if (withBoard) openSchema(withBoard); };
@@ -357,7 +378,7 @@ function annAt(t, create) {
   return a;
 }
 function pruneAnn(a) {
-  if (!a.text && !a.shapes.length && !a.board) P.annotations = P.annotations.filter((x) => x !== a);
+  if (!a.text && !a.shapes.length && !a.board && !a.voice?.length) P.annotations = P.annotations.filter((x) => x !== a);
 }
 function afterAnnChange() { save(); renderAnnotations(); tick(true); }
 
@@ -385,9 +406,10 @@ function renderAnnotations() {
     li.innerHTML = `
       <button class="time mono">${fmt(a.t)}</button>
       <div class="body">
-        <div class="txt">${a.text ? esc(a.text).replace(/\n/g, '<br>') : `<i class="hint">(${a.board ? 'schéma' : 'dessin seul'})</i>`}</div>
+        <div class="txt">${a.text ? esc(a.text).replace(/\n/g, '<br>') : `<i class="hint">(${a.voice?.length ? 'commentaire vocal' : a.board ? 'schéma' : 'dessin seul'})</i>`}</div>
         <div class="meta">
           ${a.shapes.length ? `✏️ ${a.shapes.length}` : ''}
+          ${a.voice?.length ? `<button class="voice${playingVoiceId() === a.id ? ' on' : ''}" type="button">${playingVoiceId() === a.id ? '⏹' : '▶︎'} 🎤 ${fmtDur(a.voice.reduce((n, c) => n + c.dur, 0))}</button>` : ''}
           ${a.board ? '<button class="schema" type="button">🧩 schéma</button>' : ''}
           <label>affiché <select class="dur">${[1, 2, 3, 5, 8, 15].map((d) => `<option value="${d}" ${d === (a.dur || DEFAULT_DUR) ? 'selected' : ''}>${d} s</option>`).join('')}</select></label>
         </div>
@@ -397,6 +419,7 @@ function renderAnnotations() {
         <button class="del" title="Supprimer">🗑</button>
       </div>`;
     li.querySelector('.time').onclick = () => { videoA.pause(); videoA.currentTime = a.t; };
+    li.querySelector('.voice')?.addEventListener('click', () => toggleVoice(a));
     li.querySelector('.schema')?.addEventListener('click', () => { videoA.currentTime = a.t; openSchema(a); });
     li.querySelector('.dur').onchange = (e) => { a.dur = +e.target.value; afterAnnChange(); };
     li.querySelector('.edit').onclick = () => {
@@ -405,7 +428,9 @@ function renderAnnotations() {
       a.text = t.trim(); pruneAnn(a); afterAnnChange();
     };
     li.querySelector('.del').onclick = () => {
-      if (!confirm('Supprimer ce commentaire et ses dessins ?')) return;
+      if (!confirm('Supprimer ce commentaire, ses dessins et son vocal ?')) return;
+      if (playingVoiceId() === a.id) stopVoice();
+      removeVoices(a.voice);
       P.annotations = P.annotations.filter((x) => x !== a); afterAnnChange();
     };
     ul.append(li);
@@ -501,6 +526,59 @@ document.querySelectorAll('[data-boff]').forEach((b) => (b.onclick = () => {
   applyB(); save(); syncB(true);
 }));
 
+// ---------------------------------------------------------------- commentaires vocaux
+let voiceResuming = false;
+let recorder = null, recAt = 0, recTimer = null;
+const fmtDur = (d) => `${Math.floor(d / 60)}:${String(Math.round(d % 60)).padStart(2, '0')}`;
+
+function toggleVoice(a) {
+  unlockAudio();
+  if (playingVoiceId() === a.id) { stopVoice(); return; }
+  videoA.pause();
+  if (Math.abs(videoA.currentTime - a.t) > 0.05) { voiceResuming = true; videoA.currentTime = a.t; setTimeout(() => (voiceResuming = false), 300); }
+  playVoices(a.id, a.voice);
+}
+onVoiceChange(() => { if (P) renderAnnotations(); });
+
+async function toggleRecording() {
+  if (!urlA) return;
+  unlockAudio();
+  if (recorder) return finishRecording();
+  if (!voiceSupported()) { toast("Ce navigateur ne permet pas d'enregistrer le micro"); return; }
+  videoA.pause(); stopVoice();
+  recAt = videoA.currentTime;
+  try {
+    recorder = await startRecording();
+  } catch {
+    recorder = null;
+    toast('Micro refusé : autorise le micro pour ce site dans les réglages du navigateur');
+    return;
+  }
+  document.body.classList.add('recording');
+  const update = () => {
+    const s = (Date.now() - recorder.startedAt) / 1000;
+    const label = `⏹ ${fmtDur(s)}`;
+    $('#micBtn').textContent = label; $('#micFab').textContent = label;
+    if (s >= MAX_SECONDS) finishRecording();
+  };
+  update();
+  recTimer = setInterval(update, 250);
+}
+async function finishRecording() {
+  const r = recorder; recorder = null;
+  clearInterval(recTimer);
+  document.body.classList.remove('recording');
+  $('#micBtn').textContent = '🎤 Vocal'; $('#micFab').textContent = '🎤';
+  const clip = await r.stop();
+  if (!clip) { toast('Enregistrement trop court'); return; }
+  const a = annAt(recAt, true);
+  (a.voice ||= []).push(clip);
+  afterAnnChange();
+  toast(`Vocal ajouté à ${fmt(recAt)}`);
+}
+$('#micBtn').onclick = toggleRecording;
+$('#micFab').onclick = toggleRecording;
+
 // ---------------------------------------------------------------- tableau blanc (schéma sur la vidéo)
 // Un schéma est accroché à une annotation : quand la vidéo arrive à ce moment,
 // elle se met en pause et le tableau blanc s'ouvre par-dessus.
@@ -549,10 +627,12 @@ $('#addSchemaBtn').onclick = () => {
 };
 
 // ---------------------------------------------------------------- export
-$('#exportBtn').onclick = () => {
+$('#exportBtn').onclick = async () => {
+  const annotations = [];
+  for (const a of P.annotations) annotations.push(a.voice ? { ...a, voice: await voicesToData(a.voice) } : a);
   const data = {
     format: 'analyse-video', version: 1, title: P.title, exportedAt: new Date().toISOString(),
-    videoName: P.videoRef?.name || null, annotations: P.annotations, slow: P.slow || [],
+    videoName: P.videoRef?.name || null, annotations, slow: P.slow || [],
   };
   const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' }));
   download(`${safeName(P.title)}.analyse.json`, url);

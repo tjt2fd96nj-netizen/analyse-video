@@ -61,6 +61,7 @@
             <canvas id="drawCanvas"></canvas>
             <div id="noteBubble" class="note-bubble" hidden></div>
             <div id="slowBadge" class="slow-badge" hidden></div>
+            <button id="voiceBadge" class="schema-badge voice-badge" type="button" hidden>🎤 Écouter</button>
             <button id="schemaBadge" class="schema-badge" type="button" hidden>🧩 Voir le schéma</button>
           </div>
 
@@ -145,6 +146,7 @@
             <div class="row">
               <span class="hint">à <b id="commentAt" class="mono">0:00.00</b></span>
               <span class="row-btns">
+                <button id="micBtn" class="btn small mic" type="button" title="Enregistrer un commentaire vocal à ce moment">🎤 Vocal</button>
                 <button id="addSchemaBtn" class="btn small" type="button" title="Ouvrir un tableau blanc à ce moment de la vidéo">🧩 Schéma</button>
                 <button class="btn primary small" type="submit">Ajouter</button>
               </span>
@@ -154,6 +156,7 @@
         </aside>
       </div>
     </div>
+    <button id="micFab" class="mic-fab" type="button" title="Commentaire vocal" aria-label="Enregistrer un commentaire vocal">🎤</button>
   </section>
 
   <!-- Tableau blanc (schéma) accroché à un moment de la vidéo -->

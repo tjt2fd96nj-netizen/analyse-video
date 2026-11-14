@@ -10,6 +10,9 @@ Application web installable (PWA) pour l'analyse vidéo sportive et le coaching.
 - **Dessins sur la vidéo** : crayon, ligne, flèche, flèche pointillée, rectangle, cercle,
   projecteur (assombrit tout sauf un joueur), pions numérotés, texte, gomme, annuler.
   Chaque dessin est accroché à un moment précis de la vidéo et reste affiché quelques secondes.
+- **Commentaires vocaux** : bouton « 🎤 Vocal » (et gros bouton micro en bas à droite sur mobile).
+  Appuyer pour enregistrer, appuyer à nouveau pour arrêter (2 min max). À la lecture, la vidéo
+  s'arrête au bon moment, le vocal est lu, puis la vidéo repart toute seule.
 - **Commentaires horodatés** : liste cliquable, repères sur la barre de temps,
   pause automatique de la vidéo à chaque commentaire.
 - **Comparaison** : superposition d'une 2ᵉ vidéo avec transparence, mode « différence »,

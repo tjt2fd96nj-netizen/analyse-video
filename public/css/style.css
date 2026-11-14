@@ -210,3 +210,20 @@ button, .btn, .seg button, label, select, input { touch-action: manipulation; }
 @media (pointer: coarse) {
   select, textarea, input[type=text], .title-input { font-size: 16px; }
 }
+
+/* ---------- commentaires vocaux ---------- */
+.voice-badge { top: auto; bottom: 64px; }
+.ann-list .meta .voice { padding: 1px 8px; font-size: 12px; background: #ef444422; border-color: #ef444466; color: #fca5a5; }
+.ann-list .meta .voice.on { background: #ef4444; color: #fff; }
+.mic-fab {
+  display: none; position: fixed; right: 16px; bottom: max(16px, env(safe-area-inset-bottom)); z-index: 30;
+  min-width: 64px; height: 64px; padding: 0 18px; border-radius: 999px; border: 0;
+  background: var(--accent); color: var(--accent-ink); font: 700 24px system-ui, sans-serif;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); cursor: pointer; touch-action: manipulation;
+}
+body.recording .mic-fab, body.recording #micBtn { background: var(--danger); color: #fff; font-size: 18px; animation: rec-pulse 1.2s infinite; }
+@keyframes rec-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); } 50% { box-shadow: 0 0 0 12px rgba(239, 68, 68, 0); } }
+@media (max-width: 900px) {
+  .mic-fab { display: inline-flex; align-items: center; justify-content: center; }
+  .tab-body { padding-bottom: 100px; }
+}
