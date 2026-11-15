@@ -1,4 +1,6 @@
 // Moteur de dessin partagé par la vidéo et le tableau blanc.
+import { askText } from './ui.js';
+
 // Toutes les coordonnées sont normalisées (0..1) pour que les dessins
 // restent à la bonne place quelle que soit la taille de l'écran.
 
@@ -78,14 +80,16 @@ export class Sketch {
     }
     const base = { id: uid(), color: this.color, w: this.width };
     if (this.tool === 'text') {
-      const text = prompt('Texte :');
-      if (text && text.trim()) this.onAdd({ ...base, type: 'text', p, text: text.trim() });
+      askText('Texte :', '', { okLabel: 'Ajouter' }).then((text) => {
+        if (text && text.trim()) this.onAdd({ ...base, type: 'text', p, text: text.trim() });
+      });
       return;
     }
     if (this.tool === 'token') {
       const n = this.shapes.filter((s) => s.type === 'token' && s.color === this.color).length + 1;
-      const label = prompt('Numéro ou nom du joueur :', String(n));
-      if (label !== null) this.onAdd({ ...base, type: 'token', p, label: label.trim() });
+      askText('Numéro ou nom du joueur :', String(n), { okLabel: 'Placer' }).then((label) => {
+        if (label !== null) this.onAdd({ ...base, type: 'token', p, label: label.trim() });
+      });
       return;
     }
     this.canvas.setPointerCapture(e.pointerId);

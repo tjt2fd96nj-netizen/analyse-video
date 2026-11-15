@@ -227,3 +227,11 @@ body.recording .mic-fab, body.recording #micBtn { background: var(--danger); col
   .mic-fab { display: inline-flex; align-items: center; justify-content: center; }
   .tab-body { padding-bottom: 100px; }
 }
+
+/* ---------- fenêtres de dialogue ---------- */
+.ask-modal { z-index: 60; }
+.ask-card { width: min(420px, 100%); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.ask-msg { font-weight: 600; }
+.ask-input { width: 100%; }
+.ask-btns { display: flex; justify-content: flex-end; gap: 8px; }
+.btn.danger { background: var(--danger); color: #fff; border-color: transparent; font-weight: 600; }

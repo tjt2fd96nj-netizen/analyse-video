@@ -1,4 +1,5 @@
 import { projects, newId } from './db.js';
+import { askText, askConfirm } from './ui.js';
 import { videoStorage } from './video-storage.js';
 import { Sketch, buildToolbar, drawShapes } from './sketch.js';
 import { voiceSupported, startRecording, MAX_SECONDS, unlockAudio, playVoices, stopVoice, playingVoiceId, onVoiceChange, removeVoices, voicesToData, voicesFromData } from './voice.js';
@@ -71,7 +72,7 @@ async function renderHome() {
       <button class="btn ghost small del" title="Supprimer">🗑</button>`;
     li.querySelector('.open').onclick = () => (location.hash = 'p=' + encodeURIComponent(p.id));
     li.querySelector('.del').onclick = async () => {
-      if (!confirm(`Supprimer « ${p.title} » ?`)) return;
+      if (!(await askConfirm(`Supprimer « ${p.title} » ?`))) return;
       await videoStorage.remove(p.videoRef); await videoStorage.remove(p.compareRef);
       for (const a of p.annotations) await removeVoices(a.voice);
       await projects.remove(p.id); renderHome();
@@ -344,9 +345,9 @@ const videoSketch = new Sketch($('#drawCanvas'), {
 
 const toolbarV = buildToolbar($('#videoTools'), videoSketch, {
   onUndo: undoVideo,
-  onClear() {
+  async onClear() {
     const vis = visibleAnns(videoA.currentTime).filter((a) => a.shapes.length);
-    if (!vis.length || !confirm('Effacer les dessins affichés à ce moment ?')) return;
+    if (!vis.length || !(await askConfirm('Effacer les dessins affichés à ce moment ?', 'Effacer'))) return;
     vis.forEach((a) => { a.shapes = []; pruneAnn(a); });
     afterAnnChange();
   },
@@ -422,13 +423,13 @@ function renderAnnotations() {
     li.querySelector('.voice')?.addEventListener('click', () => toggleVoice(a));
     li.querySelector('.schema')?.addEventListener('click', () => { videoA.currentTime = a.t; openSchema(a); });
     li.querySelector('.dur').onchange = (e) => { a.dur = +e.target.value; afterAnnChange(); };
-    li.querySelector('.edit').onclick = () => {
-      const t = prompt('Commentaire :', a.text);
+    li.querySelector('.edit').onclick = async () => {
+      const t = await askText('Commentaire :', a.text, { multiline: true, okLabel: 'Enregistrer' });
       if (t === null) return;
       a.text = t.trim(); pruneAnn(a); afterAnnChange();
     };
-    li.querySelector('.del').onclick = () => {
-      if (!confirm('Supprimer ce commentaire, ses dessins et son vocal ?')) return;
+    li.querySelector('.del').onclick = async () => {
+      if (!(await askConfirm('Supprimer ce commentaire, ses dessins et son vocal ?'))) return;
       if (playingVoiceId() === a.id) stopVoice();
       removeVoices(a.voice);
       P.annotations = P.annotations.filter((x) => x !== a); afterAnnChange();
@@ -592,7 +593,7 @@ const boardSketch = new Sketch($('#boardCanvas'), {
 buildToolbar($('#boardTools'), boardSketch, {
   defaultTool: 'pen', withNone: false,
   onUndo: undoSchema,
-  onClear() { if (schemaShapes().length && confirm('Effacer tout le schéma ?')) { schemaAnn.board.shapes = []; save(); boardSketch.setShapes([]); } },
+  async onClear() { if (schemaShapes().length && (await askConfirm('Effacer tout le schéma ?', 'Effacer'))) { schemaAnn.board.shapes = []; save(); boardSketch.setShapes([]); } },
 });
 function undoSchema() { schemaShapes().pop(); save(); boardSketch.setShapes(schemaShapes()); }
 
@@ -614,8 +615,8 @@ function closeSchema() {
   if (schemaResume) videoA.play();
 }
 $('#schemaClose').onclick = closeSchema;
-$('#schemaDelete').onclick = () => {
-  if (!confirm('Supprimer ce schéma ?')) return;
+$('#schemaDelete').onclick = async () => {
+  if (!(await askConfirm('Supprimer ce schéma ?'))) return;
   schemaAnn.board.shapes = []; schemaResume = false; closeSchema();
 };
 $('#addSchemaBtn').onclick = () => {
