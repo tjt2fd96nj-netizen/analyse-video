@@ -145,12 +145,15 @@ async function openProject(p) {
   await loadVideoB();
   renderAnnotations();
   renderSlow();
+  $('#pauseDur').value = String(P.pauseDur ?? 3);
+  setDragMode(false);
 }
 
 function closeProject() {
   if (!P) return;
   clearTimeout(saveTimer); projects.put(P);
   stopVoice();
+  cancelResume();
   if (recorder) { recorder.cancel(); recorder = null; clearInterval(recTimer); document.body.classList.remove('recording'); $('#micBtn').textContent = '🎤 Vocal'; $('#micFab').textContent = '🎤'; }
   videoA.pause(); videoB.pause();
   videoA.removeAttribute('src'); videoB.removeAttribute('src'); videoA.load(); videoB.load();
@@ -188,7 +191,7 @@ videoA.addEventListener('loadedmetadata', () => {
 });
 videoA.addEventListener('play', () => { $('#playBtn').textContent = '❚❚'; syncB(true); loop(); });
 videoA.addEventListener('pause', () => { $('#playBtn').textContent = '▶︎'; syncB(true); tick(true); });
-videoA.addEventListener('seeking', () => { if (!voiceResuming) stopVoice(); });
+videoA.addEventListener('seeking', () => { if (!voiceResuming) { stopVoice(); cancelResume(); } });
 videoA.addEventListener('seeked', () => { lastT = videoA.currentTime; syncB(true); tick(true); });
 videoA.addEventListener('ended', () => tick(true));
 
@@ -196,6 +199,7 @@ function togglePlay() {
   if (!urlA) return;
   unlockAudio();
   stopVoice();
+  cancelResume();
   if (videoA.paused) {
     if (videoSketch.tool !== 'none') toolbarV.select('none');
     videoA.play();
@@ -297,10 +301,7 @@ function tick(force) {
     if (hit) {
       videoA.pause(); voiceResuming = true; videoA.currentTime = hit.t; lastT = hit.t;
       if (hit.board) openSchema(hit, true);
-      if (hit.voice?.length) {
-        // Lit le vocal puis relance la vidéo (sauf si un schéma est ouvert : c'est son bouton qui relance).
-        playVoices(hit.id, hit.voice, () => { if (!schemaAnn && videoA.paused) videoA.play(); });
-      }
+      scheduleResume(hit);
       setTimeout(() => (voiceResuming = false), 300);
       return;
     }
@@ -366,7 +367,7 @@ const toolbarV = buildToolbar($('#videoTools'), videoSketch, {
     afterAnnChange();
   },
 });
-$('#videoTools').addEventListener('toolchange', (e) => { if (e.detail !== 'none') videoA.pause(); });
+$('#videoTools').addEventListener('toolchange', (e) => { if (e.detail !== 'none') { cancelResume(); videoA.pause(); } });
 
 function undoVideo() {
   while (undoStack.length) {
@@ -408,7 +409,7 @@ $('#commentForm').onsubmit = (e) => {
   $('#commentText').value = '';
   afterAnnChange();
 };
-$('#commentText').addEventListener('focus', () => videoA.pause());
+$('#commentText').addEventListener('focus', () => { cancelResume(); videoA.pause(); });
 $('#commentText').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('#commentForm').requestSubmit(); } });
 
 function renderAnnotations() {
@@ -489,8 +490,8 @@ async function loadVideoB() {
   if (urlB) {
     videoB.src = urlB;
     $('#comparePanel').open = true;
-    const c = P.compare || (P.compare = { opacity: 0.5, blend: 'normal', offset: 0, shiftX: 0, scale: 1 });
-    $('#bOpacity').value = c.opacity; $('#bBlend').value = c.blend; $('#bShiftX').value = c.shiftX; $('#bScale').value = c.scale;
+    const c = P.compare || (P.compare = { opacity: 0.5, blend: 'normal', offset: 0, shiftX: 0, shiftY: 0, scale: 1 });
+    c.shiftY ??= 0;
     applyB();
   } else {
     videoB.removeAttribute('src');
@@ -500,7 +501,9 @@ function applyB() {
   const c = P.compare;
   videoB.style.opacity = c.opacity;
   videoB.style.mixBlendMode = c.blend;
-  videoB.style.transform = `translateX(${c.shiftX * 100}%) scale(${c.scale})`;
+  videoB.style.transform = `translate(${c.shiftX * 100}%, ${c.shiftY * 100}%) scale(${c.scale})`;
+  $('#bOpacity').value = c.opacity; $('#bBlend').value = c.blend;
+  $('#bShiftX').value = c.shiftX; $('#bShiftY').value = c.shiftY; $('#bScale').value = c.scale;
   $('#bOffsetLabel').textContent = `${c.offset >= 0 ? '+' : ''}${c.offset.toFixed(2)} s`;
 }
 function syncB(hard) {
@@ -520,7 +523,7 @@ $('#videoBInput').onchange = async (e) => {
   if (!f || !P) return;
   if (P.compareRef) await videoStorage.remove(P.compareRef);
   P.compareRef = await videoStorage.upload(f);
-  P.compare = { opacity: 0.5, blend: 'normal', offset: 0, shiftX: 0, scale: 1 };
+  P.compare = { opacity: 0.5, blend: 'normal', offset: 0, shiftX: 0, shiftY: 0, scale: 1 };
   save();
   if (urlB) URL.revokeObjectURL(urlB);
   await loadVideoB();
@@ -529,13 +532,66 @@ $('#videoBInput').onchange = async (e) => {
 $('#removeB').onclick = async () => {
   await videoStorage.remove(P.compareRef);
   P.compareRef = null; save();
+  setDragMode(false);
   if (urlB) URL.revokeObjectURL(urlB);
   await loadVideoB();
 };
 $('#bOpacity').oninput = (e) => { P.compare.opacity = +e.target.value; applyB(); save(); };
 $('#bBlend').onchange = (e) => { P.compare.blend = e.target.value; applyB(); save(); };
 $('#bShiftX').oninput = (e) => { P.compare.shiftX = +e.target.value; applyB(); save(); };
+$('#bShiftY').oninput = (e) => { P.compare.shiftY = +e.target.value; applyB(); save(); };
 $('#bScale').oninput = (e) => { P.compare.scale = +e.target.value; applyB(); save(); };
+$('#bReset').onclick = () => { Object.assign(P.compare, { shiftX: 0, shiftY: 0, scale: 1 }); applyB(); save(); };
+
+// Caler la vidéo B à la main : glisser (1 doigt / souris), zoomer (2 doigts ou molette).
+const dragLayer = $('#dragLayer');
+function setDragMode(on) {
+  dragLayer.hidden = !on;
+  $('#bDrag').classList.toggle('primary', on);
+  $('#bDrag').textContent = on ? '✓ Terminer le calage' : '✋ Caler B à la main';
+  if (on) { videoA.pause(); cancelResume(); toolbarV.select('none'); }
+}
+$('#bDrag').onclick = () => setDragMode(dragLayer.hidden);
+const ptrs = new Map();
+let dragStart = null;
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+function startGesture() {
+  const pts = [...ptrs.values()];
+  const c = P.compare;
+  dragStart = { pts: pts.map((p) => ({ ...p })), shiftX: c.shiftX, shiftY: c.shiftY, scale: c.scale };
+}
+dragLayer.addEventListener('pointerdown', (e) => {
+  e.preventDefault(); e.stopPropagation();
+  dragLayer.setPointerCapture(e.pointerId);
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  startGesture();
+});
+dragLayer.addEventListener('pointermove', (e) => {
+  if (!ptrs.has(e.pointerId) || !dragStart) return;
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  const r = stage.getBoundingClientRect();
+  const pts = [...ptrs.values()], s0 = dragStart.pts;
+  const mid = (a) => ({ x: a.reduce((n, p) => n + p.x, 0) / a.length, y: a.reduce((n, p) => n + p.y, 0) / a.length });
+  if (pts.length !== s0.length) return startGesture();
+  const m1 = mid(pts), m0 = mid(s0);
+  const c = P.compare;
+  c.shiftX = clamp(dragStart.shiftX + (m1.x - m0.x) / r.width, -1, 1);
+  c.shiftY = clamp(dragStart.shiftY + (m1.y - m0.y) / r.height, -1, 1);
+  if (pts.length >= 2) {
+    const d = (a) => Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y) || 1;
+    c.scale = clamp(dragStart.scale * (d(pts) / d(s0)), 0.3, 3);
+  }
+  applyB();
+});
+const endPtr = (e) => { ptrs.delete(e.pointerId); if (ptrs.size) startGesture(); else { dragStart = null; save(); } };
+dragLayer.addEventListener('pointerup', endPtr);
+dragLayer.addEventListener('pointercancel', endPtr);
+dragLayer.addEventListener('click', (e) => e.stopPropagation());
+dragLayer.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  P.compare.scale = clamp(P.compare.scale * (e.deltaY < 0 ? 1.03 : 1 / 1.03), 0.3, 3);
+  applyB(); save();
+}, { passive: false });
 document.querySelectorAll('[data-boff]').forEach((b) => (b.onclick = () => {
   P.compare.offset = Math.round((P.compare.offset + +b.dataset.boff) * 1000) / 1000;
   applyB(); save(); syncB(true);
@@ -546,7 +602,43 @@ let voiceResuming = false;
 let recorder = null, recAt = 0, recTimer = null;
 const fmtDur = (d) => `${Math.floor(d / 60)}:${String(Math.round(d % 60)).padStart(2, '0')}`;
 
+// ---------------------------------------------------------------- reprise après la pause auto
+// La vidéo repart quand la durée choisie est écoulée ET que le vocal est fini.
+// Avec « jusqu'à ▶︎ », elle attend qu'on appuie sur lecture (sauf s'il y a un vocal : elle repart après).
+let resumeToken = 0, resumeTimer = null, countdown = null;
+function scheduleResume(hit) {
+  cancelResume();
+  const token = resumeToken;
+  const dur = +(P.pauseDur ?? 3);
+  const waitVoice = !!hit.voice?.length;
+  const waitTime = dur > 0 && !hit.board;
+  let pending = (waitVoice ? 1 : 0) + (waitTime ? 1 : 0);
+  if (!pending) return;
+  const done = () => {
+    if (token !== resumeToken || --pending > 0) return;
+    hidePauseBadge();
+    if (!schemaAnn && videoA.paused) videoA.play();
+  };
+  if (waitVoice) playVoices(hit.id, hit.voice, done);
+  if (waitTime) {
+    const end = Date.now() + dur * 1000;
+    const badge = $('#pauseBadge');
+    const upd = () => {
+      const left = Math.max(0, Math.ceil((end - Date.now()) / 1000));
+      badge.hidden = false;
+      badge.textContent = left > 0 ? `⏸ Reprise dans ${left} s` : '⏸ Reprise après le vocal…';
+    };
+    upd();
+    countdown = setInterval(upd, 200);
+    resumeTimer = setTimeout(() => { clearInterval(countdown); upd(); done(); }, dur * 1000);
+  }
+}
+function hidePauseBadge() { clearInterval(countdown); $('#pauseBadge').hidden = true; }
+function cancelResume() { resumeToken++; clearTimeout(resumeTimer); hidePauseBadge(); }
+$('#pauseDur').onchange = (e) => { P.pauseDur = +e.target.value; save(); };
+
 function toggleVoice(a) {
+  cancelResume();
   unlockAudio();
   if (playingVoiceId() === a.id) { stopVoice(); return; }
   videoA.pause();
@@ -557,6 +649,7 @@ onVoiceChange(() => { if (P) renderAnnotations(); });
 
 async function toggleRecording() {
   if (!urlA) return;
+  cancelResume();
   unlockAudio();
   if (recorder) return finishRecording();
   if (!voiceSupported()) { toast("Ce navigateur ne permet pas d'enregistrer le micro"); return; }
@@ -634,6 +727,7 @@ $('#schemaDelete').onclick = async () => {
   schemaAnn.board.shapes = []; schemaResume = false; closeSchema();
 };
 $('#addSchemaBtn').onclick = () => {
+  cancelResume();
   if (!urlA) return;
   videoA.pause();
   const a = annAt(videoA.currentTime, true);
@@ -671,7 +765,7 @@ $('#snapshotBtn').onclick = () => {
     ctx.save();
     ctx.globalAlpha = k.opacity;
     ctx.globalCompositeOperation = k.blend === 'normal' ? 'source-over' : k.blend;
-    ctx.translate(W / 2 + k.shiftX * W, H / 2); ctx.scale(k.scale, k.scale);
+    ctx.translate(W / 2 + k.shiftX * W, H / 2 + (k.shiftY || 0) * H); ctx.scale(k.scale, k.scale);
     // même cadrage que "object-fit: contain"
     const s = Math.min(W / videoB.videoWidth, H / videoB.videoHeight);
     const bw = videoB.videoWidth * s, bh = videoB.videoHeight * s;

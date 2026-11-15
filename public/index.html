@@ -61,6 +61,8 @@
             <canvas id="drawCanvas"></canvas>
             <div id="noteBubble" class="note-bubble" hidden></div>
             <div id="slowBadge" class="slow-badge" hidden></div>
+            <div id="pauseBadge" class="pause-badge" hidden></div>
+            <div id="dragLayer" class="drag-layer" hidden><span>✋ Fais glisser la vidéo B · 2 doigts pour zoomer</span></div>
             <button id="voiceBadge" class="schema-badge voice-badge" type="button" hidden>🎤 Écouter</button>
             <button id="schemaBadge" class="schema-badge" type="button" hidden>🧩 Voir le schéma</button>
           </div>
@@ -129,8 +131,11 @@
                   <button class="btn small" data-boff="0.0333">+1 img</button>
                   <button class="btn small" data-boff="1">+1 s</button>
                 </div>
-                <label>Position B <input id="bShiftX" type="range" min="-0.5" max="0.5" step="0.01" value="0"></label>
-                <label>Taille B <input id="bScale" type="range" min="0.5" max="1.5" step="0.01" value="1"></label>
+                <button id="bDrag" class="btn small" type="button" title="Fais glisser la vidéo B avec le doigt ou la souris. Deux doigts : zoom.">✋ Caler B à la main</button>
+                <button id="bReset" class="btn small ghost" type="button">Recentrer</button>
+                <label>Gauche / droite <input id="bShiftX" type="range" min="-0.5" max="0.5" step="0.005" value="0"></label>
+                <label>Haut / bas <input id="bShiftY" type="range" min="-0.5" max="0.5" step="0.005" value="0"></label>
+                <label>Taille B <input id="bScale" type="range" min="0.5" max="2" step="0.01" value="1"></label>
               </div>
             </div>
           </details>
@@ -139,7 +144,19 @@
         <aside class="side">
           <div class="side-head">
             <h3>Commentaires</h3>
-            <label class="chk" title="La vidéo s'arrête à chaque commentaire"><input id="autoPauseChk" type="checkbox" checked> Pause auto</label>
+            <span class="pause-set">
+              <label class="chk" title="La vidéo s'arrête à chaque commentaire"><input id="autoPauseChk" type="checkbox" checked> Pause auto</label>
+              <select id="pauseDur" aria-label="Durée de la pause" title="Durée de la pause avant que la vidéo reparte">
+                <option value="0">jusqu'à ▶︎</option>
+                <option value="1">1 s</option>
+                <option value="2">2 s</option>
+                <option value="3">3 s</option>
+                <option value="5">5 s</option>
+                <option value="8">8 s</option>
+                <option value="10">10 s</option>
+                <option value="15">15 s</option>
+              </select>
+            </span>
           </div>
           <form id="commentForm" class="comment-form">
             <textarea id="commentText" rows="2" placeholder="Commentaire à ce moment de la vidéo…"></textarea>
