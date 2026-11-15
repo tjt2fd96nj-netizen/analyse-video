@@ -41,13 +41,22 @@ function save() {
 }
 
 // ---------------------------------------------------------------- navigation
-window.addEventListener('hashchange', route);
-async function route() {
-  const m = location.hash.match(/^#p=(.+)$/);
+// Navigation : on ouvre l'écran directement, l'adresse (#p-…) n'est qu'un bonus
+// (certains lecteurs intégrés ignorent les changements d'adresse).
+function go(id) {
+  const h = id ? 'p-' + id : '';
+  try { if (location.hash.slice(1) !== h) history.pushState(null, '', h ? '#' + h : location.pathname + location.search); } catch {}
+  route(id || '');
+}
+window.addEventListener('hashchange', () => route());
+window.addEventListener('popstate', () => route());
+async function route(forced) {
+  const m = forced !== undefined ? (forced ? [0, forced] : null) : location.hash.match(/^#p[=-](.+)$/);
   if (m) {
     const p = await projects.get(decodeURIComponent(m[1]));
     if (p) return openProject(p);
-    location.hash = '';
+    go('');
+    return;
   }
   closeProject();
   renderHome();
@@ -70,7 +79,7 @@ async function renderHome() {
         · ${new Date(p.updatedAt).toLocaleDateString('fr-FR')}</span>
       </button>
       <button class="btn ghost small del" title="Supprimer">🗑</button>`;
-    li.querySelector('.open').onclick = () => (location.hash = 'p=' + encodeURIComponent(p.id));
+    li.querySelector('.open').onclick = () => go(p.id);
     li.querySelector('.del').onclick = async () => {
       if (!(await askConfirm(`Supprimer « ${p.title} » ?`))) return;
       await videoStorage.remove(p.videoRef); await videoStorage.remove(p.compareRef);
@@ -89,10 +98,15 @@ $('#newVideoInput').onchange = async (e) => {
   const f = e.target.files[0]; e.target.value = '';
   if (!f) return;
   toast('Import de la vidéo…');
-  const p = blankProject(f.name.replace(/\.[^.]+$/, ''));
-  p.videoRef = await videoStorage.upload(f);
-  await projects.put(p);
-  location.hash = 'p=' + encodeURIComponent(p.id);
+  try {
+    const p = blankProject(f.name.replace(/\.[^.]+$/, ''));
+    p.videoRef = await videoStorage.upload(f);
+    await projects.put(p);
+    go(p.id);
+  } catch (err) {
+    console.error(err);
+    toast("Impossible d'importer cette vidéo");
+  }
 };
 
 $('#importInput').onchange = async (e) => {
@@ -106,7 +120,7 @@ $('#importInput').onchange = async (e) => {
     const p = { ...blankProject(data.title || 'Analyse importée'), annotations, slow: data.slow || [] };
     await projects.put(p);
     toast(data.videoName ? `Ajoute maintenant la vidéo « ${data.videoName} »` : 'Analyse importée');
-    location.hash = 'p=' + encodeURIComponent(p.id);
+    go(p.id);
   } catch {
     toast('Fichier non reconnu');
   }
@@ -145,7 +159,7 @@ function closeProject() {
   urlA = urlB = null; P = null;
 }
 
-$('#backBtn').onclick = () => (location.hash = '');
+$('#backBtn').onclick = () => go('');
 $('#projectTitle').oninput = (e) => { P.title = e.target.value; save(); };
 
 

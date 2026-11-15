@@ -6,24 +6,45 @@ const DB_NAME = 'analyse-video';
 const DB_VERSION = 1;
 let dbp;
 
+// Si IndexedDB est indisponible (navigation privée, lecteur intégré…),
+// on garde tout en mémoire : l'app marche, mais rien n'est conservé après fermeture.
+const memory = { projects: new Map(), blobs: new Map() };
+let useMemory = false;
+
 function open() {
   if (!dbp) {
     dbp = new Promise((resolve, reject) => {
-      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      let req;
+      try { req = indexedDB.open(DB_NAME, DB_VERSION); } catch (e) { reject(e); return; }
+      const timer = setTimeout(() => reject(new Error('IndexedDB ne répond pas')), 3000);
       req.onupgradeneeded = () => {
         const db = req.result;
         if (!db.objectStoreNames.contains('projects')) db.createObjectStore('projects', { keyPath: 'id' });
         if (!db.objectStoreNames.contains('blobs')) db.createObjectStore('blobs');
       };
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
-    });
+      req.onsuccess = () => { clearTimeout(timer); resolve(req.result); };
+      req.onerror = () => { clearTimeout(timer); reject(req.error); };
+      req.onblocked = () => { clearTimeout(timer); reject(new Error('IndexedDB bloqué')); };
+    }).catch((e) => { console.warn('Stockage en mémoire seulement :', e); useMemory = true; return null; });
   }
   return dbp;
 }
 
+function memTx(store, mode, fn) {
+  const m = memory[store];
+  const keyPath = store === 'projects' ? 'id' : null;
+  const fake = {
+    getAll: () => ({ result: [...m.values()].map((v) => structuredClone(v)) }),
+    get: (k) => ({ result: m.has(k) ? (keyPath ? structuredClone(m.get(k)) : m.get(k)) : undefined }),
+    put: (v, k) => { m.set(keyPath ? v[keyPath] : k, keyPath ? structuredClone(v) : v); return { result: undefined }; },
+    delete: (k) => { m.delete(k); return { result: undefined }; },
+  };
+  return Promise.resolve(fn(fake)?.result);
+}
+
 async function tx(store, mode, fn) {
   const db = await open();
+  if (useMemory || !db) return memTx(store, mode, fn);
   return new Promise((resolve, reject) => {
     const t = db.transaction(store, mode);
     const s = t.objectStore(store);
